@@ -4,11 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\HasMedia;
 class Todo extends Model
 {
     use HasFactory;
-    protected $fillable = ['title','user_id','title','description'];
+    use InteractsWithMedia;
+    protected $fillable = ['title','user_id','title','image','description'];
 
     public function sluggable()
     {

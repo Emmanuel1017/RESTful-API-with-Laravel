@@ -17,9 +17,12 @@ class UserResource extends JsonResource
 
 
             return [
-                'id' => $this->id,
+               // 'id' => $this->id,
                 'name' => $this->name,
                 'email' => $this->email,
+                'role' => $this->role,
+                'image' => $this->image,
+                'image_url' => env('APP_URL') .$this->image,
                 //'created_at' => $this->created_at,
                 //'updated_at' => $this->updated_at,
             ];

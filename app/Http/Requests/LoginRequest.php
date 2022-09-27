@@ -33,8 +33,9 @@ class LoginRequest extends FormRequest
     {
         return [
             'email.required'  => 'Please give your email',
-
             'password.max'       => 'Password required',
         ];
     }
 }
+
+// TODO: Update database credentials

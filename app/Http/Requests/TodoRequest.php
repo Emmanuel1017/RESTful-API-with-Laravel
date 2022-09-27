@@ -12,6 +12,7 @@ class TodoRequest extends FormRequest
             'name'     => 'required|string|max:50',
             'email'    => 'required|max:255|email|unique:users',
             'password' => 'required|confirmed',
+            'image' => 'image|mimes:jpg,png,jpeg,gif,svg|max:2048',
         ];
     }
     /**

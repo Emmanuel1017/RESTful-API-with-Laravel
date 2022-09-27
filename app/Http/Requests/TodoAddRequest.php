@@ -26,7 +26,9 @@ class TodoAddRequest extends FormRequest
         return [
             'id' => 'integer',
             'title' => 'required|string|max:255',
+            'user_id' => 'string',
             'description' => 'required|string|max:255',
+            'image' => 'required|image|mimes:jpg,png,jpeg,gif,svg|max:2048',
         ];
     }
 
@@ -36,6 +38,7 @@ class TodoAddRequest extends FormRequest
         return [
             'title.required'     => 'Give item a title please ---',
             'title.max'          => 'Tile is max of 50 characters',
+            'image.required'  =>  'image is required',
             'description.required'    => 'Please give the item description',
         ];
     }

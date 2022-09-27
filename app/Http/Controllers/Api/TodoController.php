@@ -6,13 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Models\Todo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Gate;
 use App\Models\User;
 use App\Http\Requests\TodoUpdateRequest;
 use App\Http\Requests\TodoAddRequest;
-use Illuminate\Support\Facades\Gate;
+use App\Http\Requests\UserEditRequest ;
+
 use Cviebrock\EloquentSluggable\Services\SlugService;
 
 use App\Http\Resources\UserResource;
+use App\Http\Resources\TodoResource;
+use App\Http\Resources\TodoCollection;
+use App\Http\Resources\UserCollection;
 
 class TodoController extends Controller
 {
@@ -23,11 +29,83 @@ class TodoController extends Controller
         $this->middleware('auth:api');
     }
 
+
+    //---------------------------------------    //user crud//----------------------------------------------------//
+
+ //save item
+ public function edit_user(UserEditRequest $request)
+ {
+     // Get the currently authenticated user's ID...
+     $id = Auth::user()->id;
+     try {
+         $user = User::findOrFail($id);
+     } catch (Exception $ex) {
+         return response()->json([
+             'status' => 'Error',
+             'message' => $ex,
+         ]);
+     }
+      $avatarName = null;
+     //check if avatar image is provided
+     if ($request->hasFile('image')) {
+         $file = $request->file('image');
+         //file extension and name
+         $avatarName = '/avatars/' . uniqid() . '.' . $file->extension();
+         //save avatar
+
+         if ($request->filled('name') && $file->storePubliclyAs('public', $avatarName)) {
+             $user->name = $request->name;
+             $user->image = '/storage'.$avatarName;
+             if ($user->save()) {
+                 return response()->json([
+                     'status' => 'success',
+                     'message' => 'user details updated Successfully',
+                 ], 200);
+             }
+         } else {
+             if ($file->storePubliclyAs('public', $avatarName)) {
+                 $user->image = '/storage'.$avatarName;
+                 if ($user->save()) {
+                     return response()->json([
+                         'status' => 'success',
+                         'message' => 'Profile picture updated successfully**',
+                     ], 200);
+                 }
+             }
+         }
+     } else {
+         if ($request->filled('name')) {
+             $user->name = $request->name;
+             if ($user->save()) {
+                 return response()->json([
+                     'status' => 'success',
+                     'message' => 'user details updated Successfully',
+                 ], 200);
+             }
+         } else {
+             return response()->json([
+                 'status' => 'nothing changed',
+                 'message' => 'nothing has been updated',
+             ], 304);
+         }
+     }
+ }
+
+
+
+    //---------------------------------------    //todos crud//----------------------------------------------------//
+
     //get all items
     public function index()
     {
         //where to query only users items
-        $todos = Todo::all()->where('user_id', '=', Auth::user()->id);
+        $query = Todo::all();
+
+
+        $todos = $query->where('user_id', '=', Auth::user()->id);
+
+
+
         $count = $todos->count();
         if ($count < 1) {
             return response()->json([
@@ -36,8 +114,8 @@ class TodoController extends Controller
         } else {
             return response()->json([
                 'status' => 'success',
-                'user items' => $count,
-                'items array' => $todos,
+                'my items' => $count,
+                'items array' => new TodoCollection($todos) ,
             ]);
         }
     }
@@ -47,23 +125,37 @@ class TodoController extends Controller
     {
         // Get the currently authenticated user's ID...
         $id = Auth::user()->id;
+        $avatarName = null;
+        //check if avatar image is provided
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            //file extension and name
+            $avatarName = '/avatars/' . uniqid() . '.' . $file->extension();
+            //save avatar
+            $file->storePubliclyAs('public', $avatarName);
+        }
 
-        if ($todo = Todo::create([
-            'user_id' => $id,
-            'title' => $request->title,
-            'description' => $request->description,
-        ])) {
+
+
+        // $validatedData = $request->validated();
+        $todo = Todo::create([
+         'user_id' => $id,
+         'title' => $request->title,
+         'description' => $request->description,
+         'image' => '/storage'.$avatarName
+        ]);
+
+        if ($todo) {
             return response()->json([
                 'status' => 'success',
                 'message' => 'Item created successfully',
-                'todo' => $todo,
+                'todo' => new TodoResource($todo),
             ]);
         } else {
             return response()->json([
                 'status' => 'failed',
                 'message' => 'Item not created',
-                'todo' => $todo,
-            ]);
+            ], 504);
         }
     }
 
@@ -71,40 +163,29 @@ class TodoController extends Controller
     public function show($id)
     {
         try {
-            $todo = Todo::findOrFail($id);
+            $todo =  Todo::findOrFail($id)->first();
+            $todo = new TodoResource($todo);
             //$todo = Todo::where('id', '=', $id)->get();
-        } catch (\Exception$e) {
+        } catch (\Exception $e) {
             return response()->json(['message' => 'item not found!'], 404);
         }
 
-        if (Gate::allows('can_get', $todo)) {
+        $user = Auth::user();
+        if (Gate::allows('can_get', $todo)||Gate::allows('isAdmin', $user) || Gate::allows('isManager', $user)) {
             return response()->json([
-                'status' => $id,
-                'todo' => $todo,
+                'status' => true,
+                'details' => $todo,
             ]);
         } else {
             return response()->json([
                 'status' => 'not allowed to view item',
-            ]);
+            ], 400);
         }
     }
 
     //edit
     public function update(TodoUpdateRequest $request, $id)
     {
-        /* try {
-             $request->validate([
-                 'user_id' => 'integer',
-                 'title' => 'required|string|max:255',
-                 'description' => 'required|string|max:255',
-             ]);
-         } catch (Exception $ex) {
-             return response()->json([
-
-                 'message' => $ex,
-             ]);
-         }*/
-
         try {
             $todo = Todo::findOrFail($id);
         } catch (Exception $ex) {
@@ -175,6 +256,44 @@ class TodoController extends Controller
 
     //---------------------------------misc admin functions------------------------------------------------------------//
 
+    public function get_user()
+    {
+        $id = Auth::user()->id;
+        $user = User::where('id', '=', $id)->get()->first();
+        return response()->json([
+            'status' => 'success',
+            //  'message' => 'user: '.$user->name,
+            'user' => new UserResource($user),
+        ]);
+    }
+
+    public function get_my_todos()
+    {
+        $id = Auth::user()->id;
+
+        try {
+            $todos = Todo::where('user_id', '=', $id)->get();
+        } catch (\Exception$e) {
+            return response()->json(['message' => 'item not found!'], 404);
+        }
+        //use first if returning collection to return single object  -> use first to get an object not collection
+        $user = User::where('id', '=', $id)->get()->first();
+
+        $user = new UserResource($user);
+        $count_todos = $todos->count();
+
+        if ($count_todos < 1) {
+            $todos = 'user has no items';
+        }
+
+        return response()->json([
+            'status' => 'success',
+            //  'message' => 'user: '.$user->name,
+            'user' => $user,
+            'todos' => new TodoCollection ($todos),
+        ]);
+    }
+
 
     public function get_specific_user_todos($id)
     {
@@ -205,16 +324,18 @@ class TodoController extends Controller
             return response()->json([
                 'status' => 'failed',
                 'message' => 'only admins can do this',
-            ]);
+            ], 400);
         }
     }
+
+
 
 
     public function get_all_users_admin(Request $request)
     {
         $user = Auth::user();
         if (Gate::allows('isAdmin', $user) || Gate::allows('isManager', $user)) {
-            if ($users = User::all()) {
+            if ($users =new UserCollection(User::all())) {
                 $count = $users->count();
                 if ($count < 1) {
                     return response()->json([
@@ -222,9 +343,9 @@ class TodoController extends Controller
                     ]);
                 } else {
                     return response()->json([
-                        'status' => 'success',
+                        'status' => true,
                         'No of users :' => $count.' users',
-                        'Users: ' => $users
+                         $users
                     ]);
                 }
             } else {
@@ -232,14 +353,14 @@ class TodoController extends Controller
                     'status' => 'failed',
                     'message' => 'Fetch method failed',
 
-                ]);
+                ], 504);
             }
         } else {
             return response()->json([
                 'status' => 'failed',
                 'message' => 'You must be admin or superuser to view this',
 
-            ]);
+            ], 400);
         }
     }
 
@@ -265,14 +386,13 @@ class TodoController extends Controller
                     'status' => 'failed',
                     'message' => 'Fetch method failed',
 
-                ]);
+                ], 504);
             }
         } else {
             return response()->json([
                 'status' => 'failed',
                 'message' => 'You must be admin or superuser to view this',
-
-            ]);
+            ], 400);
         }
     }
 
@@ -281,9 +401,10 @@ class TodoController extends Controller
         $user = Auth::user();
         if (Gate::allows('isAdmin', $user) || Gate::allows('isManager', $user)) {
             if ($users = User::all()) {
-                $count = $users->count();
+                $users =  new UserCollection($users);
+                $count_users = $users->count();
 
-                if ($count < 1) {
+                if ($count_users < 1) {
                     return response()->json([
                         'response' => 'no users',
                     ]);
@@ -292,51 +413,42 @@ class TodoController extends Controller
                     //iterate through all users
                     foreach ($users as $user) {
                         $todos = Todo::all()->where('user_id', '=', $user->id);
+                        $todos = new TodoCollection($todos);
                         $count = $todos->count();
 
                         if ($count < 1) {
-                            array_push($response, 'user: '.$user->name .' has no items', );
+                            array_push($response, $user, 'user: '.$user->name .' has no items', );
                         } else {
-                            array_push($response, response()->json([
-                                'status: ' => true,
-                                'User: ' => $user,
-                                $user->name .' items count: ' => $count,
-                                $user->name .' items: ' => $todos,
-                            ]));
-
+                            array_push(
+                                $response,
+                                [
+                                'user: ' => $user,
+                                'User '.$user->name.' number of items: ' => $count,
+                                'User '.$user->name.' items: ' => $todos,]
+                            );
                             // array_push($response,$user->toJson(JSON_PRETTY_PRINT));
                         }
                     }
 
                     return response()->json([
+                        'status: ' => true,
+                        'No of users: ' => $count_users,
                         $response
-                    ]);
+                    ], 200);
                 }
             } else {
                 return response()->json([
                     'status' => 'failed',
                     'message' => 'Fetch method failed',
 
-                ]);
+                ], 504);
             }
         } else {
             return response()->json([
                 'status' => 'failed',
                 'message' => 'You must be admin or superuser to view this',
 
-            ]);
+            ], 400);
         }
-    }
-
-
- /// file mgmt
-    public function upload(Request $request)
-    {
-        if ($request->hasFile('image')) {
-            $filename = $request->image->getClientOriginalName();
-            $request->image->storeAs('images', $filename, 'public');
-            Auth()->user()->update(['image' => $filename]);
-        }
-        return redirect()->back();
     }
 }

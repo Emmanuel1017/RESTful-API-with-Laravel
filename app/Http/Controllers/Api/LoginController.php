@@ -25,13 +25,11 @@ class LoginController extends Controller
 
     public function login(LoginRequest $request)
     {
-
         $credentials = $request->only('email', 'password');
 
         //use |JWTAuth instead of Auth to return a token not a null token
         $token =  \JWTAuth::attempt($credentials);
         if (!$token) {
-
             return response()->json([
                 'status' => 'error',
                 'message' => 'Unauthorized',
@@ -59,17 +57,11 @@ class LoginController extends Controller
     public function sendResponse($user, $token, $User_Type)
     {
         $response = [
-            'success' => true,
-            'user' => [
-                'id : '=>$user->id,
-                'name : '=>$user->name,
-                'email: '=>$user->email,
-                'User Type : '=>$User_Type
-            ],
-            'authorisation' => [
-                'token type' => 'bearer',
-                'token' => $token,
-            ]
+           'success' => true,
+           'user' => new UserResource($user),
+           'token type' => 'bearer',
+           'token' => $token,
+
         ];
         return response()->json($response, 200);
     }

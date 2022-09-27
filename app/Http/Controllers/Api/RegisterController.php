@@ -2,8 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-
-
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 //use App\Http\Controllers\Api\BaseController as BaseController;
@@ -13,6 +11,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Controllers\Api\LoginController;
 use Validator;
+
 class RegisterController extends Controller
 {
     public function __construct()
@@ -27,43 +26,31 @@ class RegisterController extends Controller
 
     public function Register(RegisterRequest $request)
     {
-
-
-      if(   $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => 'user'
-        ]))
-        {
+        if ($user = User::create([
+              'name' => $request->name,
+              'email' => $request->email,
+              'password' => Hash::make($request->password),
+              'role' => 'user'
+          ])) {
             //request token resp[onse upon creation by a login validation
             $credentials = $request->only('email', 'password');
             //use |JWTAuth instead of Auth to return a token not a null token
             $token = \JWTAuth::attempt($credentials);
             return $this->sendResponse($user, $token);
+        } else {
         }
-        else
-        {
-
-        }
-
     }
 
     //json responses
-    public function sendResponse($user,$token)
+    public function sendResponse($user, $token)
     {
-    	$response = [
+        $response = [
             'success' => true,
-            'user' => [
-                'id : '=>$user->id,
-                'name : '=>$user->name,
-                'email: '=>$user->email,
-                'User Type : '=>$user->role
-            ],
-            'authorisation' => [
+            'user' => new UserResource($user)
+            ,
                 'token' => $token,
                 'type' => 'bearer',
-            ]
+
         ];
         return response()->json($response, 200);
     }
@@ -73,16 +60,15 @@ class RegisterController extends Controller
 
     public function sendError($error, $errorMessages = [], $code = 404)
     {
-    	$response = [
+        $response = [
             'success' => false,
             'message' => $error,
         ];
 
-        if(!empty($errorMessages)){
+        if (!empty($errorMessages)) {
             $response['data'] = $errorMessages;
         }
 
         return response()->json($response, $code);
     }
-
 }
